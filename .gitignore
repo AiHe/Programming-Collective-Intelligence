@@ -1,0 +1,15 @@
+.idea
+.iml
+out
+project/project
+project/target
+target
+data
+.DS_Store
+.ipynb_checkpoints
+*.pyc
+lib
+lib_managed
+.settings
+.project
+.classpath
