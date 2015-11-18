@@ -80,7 +80,7 @@ import itertools
 
 
 def getRecommendations(prefs, person, similarity=sim_pearson):
-    """Gets recommendations for a person by using a weighted average of every other user's rankings
+    """Gets recommendations for a person by using a weighted average of every other user's rankings.
 
     :param
     :param
@@ -108,3 +108,44 @@ def transformPrefs(prefs):
             result.setdefault(item, {})
             result[item][person] = prefs[person][item]
     return result
+
+
+def calculateSimilarItems(prefs, n=10, verbose=False):
+    """Create a dictionary of items showing which other items they are most similar to.
+
+    :param
+    :param
+    :return
+    """
+    item_prefs = transformPrefs(prefs)
+    ret = {}
+    for i, item in enumerate(item_prefs):
+        if verbose and (i + 1) % 100 == 0:
+            print('{} / {}'.format(c + 1, len(item_prefs)))
+        scores = topMatches(item_prefs, item, n=n, similarity=sim_pearson)
+        ret[item] = scores
+    return ret
+
+
+def getRecommendedItems(prefs, itemMatch, user):
+    """Gets recommendations for a person by using a weighted average of ratings he/she gave.
+
+    :param
+    :param
+    :param
+    :return
+    """
+    user_ratings = prefs[user]
+    mat = {}
+    for item, rating in user_ratings.iteritems():
+        sim_items = itemMatch.get(item, [])
+        for sim, it in sim_items:
+            if not it in user_ratings:
+                mat.setdefault(it, [])
+                mat[it].append((sim * rating, sim))
+    scores = []
+    for k, v in mat.iteritems():
+        num, den = map(sum, zip(*v))
+        if den:
+            scores.append((k, float(num) / den))
+    return sorted(scores, key=lambda e: -e[1])
