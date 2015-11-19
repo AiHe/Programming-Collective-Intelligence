@@ -2,6 +2,7 @@ import string
 import re
 import operator
 from PIL import Image, ImageDraw
+import itertools
 
 
 def readfile(filename):
@@ -123,3 +124,29 @@ def drawnode(draw, clust, x, y, scaling, labels):
     else:
         # If this is an endpoint, draw the item label
         draw.text((x + 5, y - 7), labels[clust.id], (0, 0, 0))
+
+import random
+
+
+def kcluster(rows, distance=pearson, k=4, max_iter=100, verbose=False):
+    # determine max and min values on each feature
+    min_max = map(lambda e: (max(e), min(e)), zip(*rows))
+    clusters = [[mn + random.random() * (mx - mn) for mn, mx in min_max] for j in xrange(k)]
+    last_match = None
+    get_p1 = operator.itemgetter(1)
+    avg = lambda e: float(sum(e)) / len(e)
+
+    for it in xrange(max_iter):
+        best_match = [-1 for i in xrange(len(rows))]
+        for i, row in enumerate(rows):
+            d, idx = min([(distance(row, c), j) for j, c in enumerate(clusters)])
+            best_match[i] = idx
+        if last_match == best_match:
+            break
+        else:
+            last_match = best_match
+
+        for k, v in itertools.groupby(sorted(enumerate(best_match), key=get_p1), key=get_p1):
+            center = map(avg, zip(*[rows[r] for r, cid in v]))
+            clusters[k] = center
+    return best_match
