@@ -14,6 +14,23 @@ object DocClass {
   }
 
   trait Classifier {
+
+    def featuresFunc: String => Feature
+
+    /**
+     *
+     * @param cat
+     * @param t
+     */
+    def setThreshold(cat: String, t: Double)
+
+    /**
+     *
+     * @param cat
+     * @return
+     */
+    def getThreshold(cat: String): Double
+
     /**
      * Increase the count of a feature/category pair
      * @param f
@@ -48,7 +65,7 @@ object DocClass {
     /**
      * The list of all categories
      */
-    def categories(): Feature
+    def categories: Feature
 
     /**
      * Train a classifier
@@ -63,15 +80,34 @@ object DocClass {
      * @param cat
      * @return
      */
-    def fProb(f: String, cat: String): Double
+    def fProb(f: String, cat: String, alpha: Double = 1.0): Double
+
+    /**
+     * Weighted probability for normalization
+     * @param f
+     * @param cat
+     * @param weight
+     * @param ap
+     * @return
+     */
+    def weightedProb(f: String, cat: String, weight: Double = 1.0, ap: Double = 0.5): Double
   }
 
-  class ClassifierOnDict(featuresFunc: String => Feature) extends Classifier {
+  class ClassifierOnDict(override val featuresFunc: String => Feature) extends Classifier {
 
     import scala.collection.mutable
 
-    private val fc = mutable.Map[String, mutable.Map[String, Int]]()
-    private val cc = mutable.Map[String, Int]()
+    private val fc = mutable.Map.empty[String, mutable.Map[String, Int]]
+    private val cc = mutable.Map.empty[String, Int]
+    private val thresholds = mutable.Map.empty[String, Double]
+
+    def setThreshold(cat: String, t: Double) = {
+      thresholds += cat -> t
+    }
+
+    def getThreshold(cat: String): Double = {
+      thresholds.getOrElse(cat, 1.0)
+    }
 
     /**
      * Increase the count of a feature/category pair
@@ -103,7 +139,7 @@ object DocClass {
     /**
      * The list of all categories
      */
-    override def categories(): Feature = cc.keys.toSet
+    override def categories: Feature = cc.keys.toSet
 
     /**
      * Train a classifier
@@ -113,8 +149,8 @@ object DocClass {
     override def train(item: String, cat: String): Unit = {
       featuresFunc(item).foreach(x => {
         incf(x, cat)
-        incc(cat)
       })
+      incc(cat)
     }
 
     /**
@@ -133,30 +169,75 @@ object DocClass {
     override def catCount(cat: String): Int = {
       cc.getOrElse(cat, 0)
     }
-    
+
     /**
      * Get probability of a feature occurring at a certain category
      * @param f
      * @param cat
      * @return
      */
-    override def fProb(f: String, cat: String): Double = {
+    override def fProb(f: String, cat: String, alpha: Double): Double = {
       val cCount = catCount(cat)
-      if (cCount == 0) 0.0 else fCount(f, cat).toDouble / cCount
+      //      if (cCount == 0) 0.0 else fCount(f, cat).toDouble / cCount
+      (fCount(f, cat).toDouble + alpha * 1) / (cCount + alpha * totalCount())
     }
 
     /**
-     *
+     * Weighted probability for normalization
      * @param f
      * @param cat
      * @param weight
      * @param ap
      * @return
      */
-    def weightedProb(f: String, cat: String, weight: Double = 1.0, ap: Double = 0.5): Double = {
+    override def weightedProb(f: String, cat: String, weight: Double, ap: Double): Double = {
       val fC = fCount(f, cat)
-      val cC = catCount(cat)
-      if (fC == 0) ap else (fC + weight * ap) / (weight + cC)
+      val totals = categories.map(fCount(f, _)).sum
+      (fC * totals + weight * ap) / (weight + totals)
+    }
+
+  }
+
+  object ClassifierOnDict {
+    def apply(featuresFunc: String => Feature): ClassifierOnDict = {
+      new ClassifierOnDict(featuresFunc)
+    }
+  }
+
+  trait NaiveBayes extends Classifier {
+
+    def docProb(item: String, cat: String): Double = {
+      val features = featuresFunc(item)
+      features.map(fProb(_, cat)).product
+    }
+
+    def prob(item: String, cat: String): Double = {
+      docProb(item, cat) * catCount(cat) / totalCount()
+    }
+
+    def classify(item: String): Option[String] = {
+      val m = Map[String, Double](categories.toSeq.map(c => c -> prob(item, c)): _*)
+      val (bestCat, bestP) = m.maxBy(_._2)
+      (m - bestCat).exists { case (cat: String, p: Double) =>
+        p * getThreshold(bestCat) > bestP
+      } match {
+        case true => None
+        case false => Some(bestCat)
+      }
+    }
+  }
+
+  class NaiveBayesOnDict(override val featuresFunc: String => Feature)
+    extends ClassifierOnDict(featuresFunc) with NaiveBayes {
+
+    //    override def classify(item: String): Option[String] = {
+    //
+    //    }
+  }
+
+  object NaiveBayesOnDict {
+    def apply(featuresFunc: String => Feature): NaiveBayesOnDict = {
+      new NaiveBayesOnDict(featuresFunc)
     }
   }
 
