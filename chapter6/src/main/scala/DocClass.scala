@@ -228,12 +228,7 @@ object DocClass {
   }
 
   class NaiveBayesOnDict(override val featuresFunc: String => Feature)
-    extends ClassifierOnDict(featuresFunc) with NaiveBayes {
-
-    //    override def classify(item: String): Option[String] = {
-    //
-    //    }
-  }
+    extends ClassifierOnDict(featuresFunc) with NaiveBayes
 
   object NaiveBayesOnDict {
     def apply(featuresFunc: String => Feature): NaiveBayesOnDict = {
