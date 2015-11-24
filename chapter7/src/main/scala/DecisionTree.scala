@@ -6,12 +6,12 @@ import scala.math.log
  */
 object DecisionTree {
 
-  type Feature = Seq[String]
-  type DataSet = Seq[Feature]
+  type Feature = IndexedSeq[String]
+  type DataSet = IndexedSeq[Feature]
   type Result = Map[String, Int]
 
   val myData: DataSet = Source.fromFile("decision_tree_example.txt").getLines().
-    toSeq.map(_.split("\t").toSeq)
+    toIndexedSeq.map(_.split("\t").toIndexedSeq)
 
   sealed trait Node
 
@@ -121,18 +121,18 @@ object DecisionTree {
 
     val (finalScore, (finalCol, finalValue), (finalSet1, finalSet2)) = (0 until numCol).
       foldLeft(bestAcc) {
-        case (acc, c) => {
-          rows.map(_ (c).convert).foldLeft(acc) {
-            case ((bg, bc, bs), v) => {
-              val (set1, set2) = divideSet(rows, c, v)
-              val portion = set1.size.toDouble / rows.size
-              val score = portion * impurity.calculate(set1) + (1 - portion) * impurity.calculate(set2)
-              val gain = curScore - score
-              if (gain > bg) (gain, (c, v), (set1, set2)) else (bg, bc, bs)
-            }
+      case (acc, c) => {
+        rows.map(_(c).convert).foldLeft(acc) {
+          case ((bg, bc, bs), v) => {
+            val (set1, set2) = divideSet(rows, c, v)
+            val portion = set1.size.toDouble / rows.size
+            val score = portion * impurity.calculate(set1) + (1 - portion) * impurity.calculate(set2)
+            val gain = curScore - score
+            if (gain > bg) (gain, (c, v), (set1, set2)) else (bg, bc, bs)
           }
         }
       }
+    }
 
     if (finalScore > 0) {
       val (br1, br2) = (buildTree(finalSet1), buildTree(finalSet2))
