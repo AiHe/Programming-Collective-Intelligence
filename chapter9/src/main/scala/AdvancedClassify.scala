@@ -3,7 +3,7 @@
  */
 object AdvancedClassify {
 
-  import common.DataFrame._
+  import common._
 
   val matchTable = Table.loadCSV(path = "matchmaker.csv", tableName = "MatchMaker", header = false)
 

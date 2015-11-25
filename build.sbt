@@ -6,7 +6,7 @@
 //
 // libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.10.3"
 
-name := "Programming-Collective-Intelligence"
+// name := "Programming-Collective-Intelligence"
 
 val commonSettings = Seq(
   organization := "me.heai",
@@ -17,7 +17,7 @@ val commonSettings = Seq(
 
 lazy val common = project.in(file("common"))
   .settings(commonSettings:_*)
-  .settings(libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.12.0-M3")
+  .settings(libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.11.7")
 
 lazy val chapter8 = project.in(file("chapter8"))
   .settings(commonSettings:_*)
@@ -40,4 +40,5 @@ lazy val chapter5 = project.in(file("chapter5"))
   .dependsOn(common)
 
 lazy val main = project.in(file("."))
+  .settings(commonSettings:_*)
   .aggregate(common, chapter5, chapter6, chapter7, chapter8, chapter9)

@@ -1,4 +1,3 @@
-import scala.io.Source
 import scala.math.log
 
 /**
@@ -6,12 +5,15 @@ import scala.math.log
  */
 object DecisionTree {
 
-  type Feature = IndexedSeq[String]
-  type DataSet = IndexedSeq[Feature]
+  import common._
+
+  type Feature = Row
+  type DataSet = Table
   type Result = Map[String, Int]
 
-  val myData: DataSet = Source.fromFile("decision_tree_example.txt").getLines().
-    toIndexedSeq.map(_.split("\t").toIndexedSeq)
+
+  val myData = Table.loadTSV(path = "chapter7/decision_tree_example.txt", tableName = "dt",
+    header = false)
 
   sealed trait Node
 
@@ -19,27 +21,26 @@ object DecisionTree {
 
   case class Leaf(result: Result) extends Node
 
-  class StringConversion(s: String) {
-    val r = """^[-+]?(\d+\.?\d*|\.\d+)([Ee][+-]?\d+)?$"""
-    val bool = """[true|false]"""
-
-    def convert: Any = {
-      if (s.matches(r)) s.toDouble
-      else if (s.toLowerCase.matches(bool)) s.toBoolean
-      else s
-    }
-  }
-
-  implicit def String2ExtendedString(s: String): StringConversion = new StringConversion(s)
+  //  class StringConversion(s: String) {
+  //    val r = """^[-+]?(\d+\.?\d*|\.\d+)([Ee][+-]?\d+)?$"""
+  //    val bool = """[true|false]"""
+  //
+  //    def convert: Any = {
+  //      if (s.matches(r)) s.toDouble
+  //      else if (s.toLowerCase.matches(bool)) s.toBoolean
+  //      else s
+  //    }
+  //  }
+  //
+  //  implicit def String2ExtendedString(s: String): StringConversion = new StringConversion(s)
 
   def typeCheck(v: Any): Any = {
     v match {
-      case z: Boolean => z
-      case b: Byte => b.toDouble
-      case c: Char => c.toDouble
-      case s: Short => s.toDouble
-      case i: Int => i.toDouble
-      case j: Long => j.toDouble
+      case b: Byte => b.toLong
+      case c: Char => c.toLong
+      case s: Short => s.toLong
+      case i: Int => i.toLong
+      case j: Long => j.toLong
       case f: Float => f.toDouble
       case d: Double => d.toDouble
       case l: String => l
@@ -47,6 +48,17 @@ object DecisionTree {
     }
   }
 
+  /**
+   * Divides a set on a specific column Can handle numeric or nominal values
+   * @param rows
+   * @param column
+   * @param value
+   * @return
+   */
+  def divideSet(rows: DataSet, column: Int, value: Any): (DataSet, DataSet) = {
+    require(rows.nonEmpty && column >= 0 && column < rows.width)
+    divideSet(rows, rows.colNames(column), value)
+  }
 
   /**
    * Divides a set on a specific column Can handle numeric or nominal values
@@ -54,12 +66,24 @@ object DecisionTree {
    * @param column
    * @param value
    */
-  def divideSet(rows: DataSet, column: Int, value: Any): (DataSet, DataSet) = {
-    require(rows.nonEmpty && column >= 0 && column < rows.head.length - 1)
-    rows.partition { case seq => {
-      val e = seq(column)
-      (e.convert, typeCheck(value)) match {
-        case (a: Boolean, b: Boolean) => a == b
+  def divideSet(rows: DataSet, column: String, value: Any): (DataSet, DataSet) = {
+    //    require(rows.nonEmpty && column >= 0 && column < rows.head.length - 1)
+    //    rows.partition { case seq => {
+    //      val e = seq(column)
+    //      (e.convert, typeCheck(value)) match {
+    //        case (a: Boolean, b: Boolean) => a == b
+    //        case (a: Double, b: Double) => a >= b
+    //        case (a: String, b: String) => a == b
+    //        case _ => throw new Exception
+    //      }
+    //    }
+    rows.partition { case row => {
+      val v1 = row.valuesMap(column)
+      val v2 = typeCheck(value)
+      (v1, v2) match {
+        case (a: Long, b: Long) => a >= b
+        case (a: Double, b: Long) => a >= b
+        case (a: Long, b: Double) => a >= b
         case (a: Double, b: Double) => a >= b
         case (a: String, b: String) => a == b
         case _ => throw new Exception
@@ -69,7 +93,15 @@ object DecisionTree {
   }
 
   def uniqueCounts(rows: DataSet): Result = {
-    rows.map(_.last).groupBy(x => x).mapValues(_.size)
+    //    val t = rows.lastColumn.columnType
+    //    if (t =:= typeOf[Long]) {
+    //      rows.lastColumn.data.groupBy[Long](x => x).mapValues(_.size)
+    //    } else if (t =:= typeOf[Double]) {
+    //      rows.lastColumn.data.groupBy[Double](x => x).mapValues(_.size)
+    //    } else {
+    //      rows.lastColumn.data.groupBy[String](x => x).mapValues(_.size)
+    //    }
+    rows.lastColumnOption.map(_.data.groupBy(x => x.toString).mapValues(_.size)).getOrElse(Map.empty)
   }
 
   trait Impurity {
@@ -122,7 +154,8 @@ object DecisionTree {
     val (finalScore, (finalCol, finalValue), (finalSet1, finalSet2)) = (0 until numCol).
       foldLeft(bestAcc) {
       case (acc, c) => {
-        rows.map(_(c).convert).foldLeft(acc) {
+        val x = rows.column(c).data
+        x.foldLeft(acc) {
           case ((bg, bc, bs), v) => {
             val (set1, set2) = divideSet(rows, c, v)
             val portion = set1.size.toDouble / rows.size
@@ -146,7 +179,7 @@ object DecisionTree {
       case Leaf(result) => result
       case Branch(col, value, tb, fb) => {
         require(col >= 0 && col < observation.size)
-        val br = (observation(col).convert, value) match {
+        val br = (observation.values(col), value) match {
           case (a: Boolean, b: Boolean) => if (a == b) tb else fb
           case (a: Double, b: Double) => if (a >= b) tb else fb
           case (a: String, b: String) => if (a == b) tb else fb
@@ -155,6 +188,21 @@ object DecisionTree {
         classify(observation, br)
       }
     }
+  }
+
+  def main(args: Array[String]): Unit = {
+    val data = DecisionTree.myData
+    println(data)
+    val (a, b) = DecisionTree.divideSet(data, 3, 22)
+    println()
+    println(a)
+    println()
+    println(b)
+    val tree = DecisionTree.buildTree(DecisionTree.myData)
+    println()
+    println(tree)
+
+    println(DecisionTree.classify(Row.load(IndexedSeq("(direct)", "USA", "yes", "5"), "test"), tree))
   }
 
 }
